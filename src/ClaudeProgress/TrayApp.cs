@@ -28,9 +28,17 @@ internal sealed class TrayApp : ApplicationContext
     private bool _askedForToken;
     private string? _balloonUrl;
 
+    private readonly SignalRgbBridge _rgb = new();
+    private readonly System.Windows.Forms.Timer _doneTimer;
+    private readonly ToolStripMenuItem _rgbItem;
+    private DateTime _doneUntil = DateTime.MinValue;
+    private int _waiting;
+    private int _running;
+
     public TrayApp()
     {
         _settings = Settings.Load();
+        _rgb.Enabled = _settings.SignalRgb;
         _form = new TasksForm();
         // Wymusza utworzenie uchwytu okna na wątku UI.
         _ = _form.Handle;
@@ -38,6 +46,19 @@ internal sealed class TrayApp : ApplicationContext
         _autostartItem = new ToolStripMenuItem("Uruchamiaj z Windows", null, (_, _) => ToggleAutostart())
         {
             Checked = IsAutostartEnabled(),
+        };
+
+        _rgbItem = new ToolStripMenuItem("Wentylator RGB (SignalRGB)", null, async (_, _) => await ToggleRgbAsync())
+        {
+            Checked = _settings.SignalRgb,
+        };
+
+        // Po upływie czasu zielonego przelicza stan wentylatora.
+        _doneTimer = new System.Windows.Forms.Timer();
+        _doneTimer.Tick += (_, _) =>
+        {
+            _doneTimer.Stop();
+            UpdateRgb();
         };
 
         var menu = new ContextMenuStrip();
@@ -48,6 +69,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Ustaw token GitHub…", null, async (_, _) => { if (PromptForToken()) await PollAsync(); });
         menu.Items.Add(_autostartItem);
+        menu.Items.Add(_rgbItem);
         menu.Items.Add("Otwórz folder ustawień", null, (_, _) =>
         {
             Directory.CreateDirectory(Settings.Folder);
@@ -197,6 +219,20 @@ internal sealed class TrayApp : ApplicationContext
 
         var waiting = visible.Count(i => i.State == TaskState.NeedsInput);
         var running = visible.Count(i => i.State == TaskState.InProgress);
+        _waiting = waiting;
+        _running = running;
+
+        if (events.Any(e => e.State == TaskState.Done))
+        {
+            var glow = Math.Max(5, _settings.DoneGlowSeconds);
+            _doneUntil = DateTime.Now.AddSeconds(glow);
+            _doneTimer.Stop();
+            _doneTimer.Interval = glow * 1000 + 500;
+            _doneTimer.Start();
+        }
+
+        // Wysyłane przy każdym sprawdzeniu, żeby efekt odzyskał stan po restarcie SignalRGB.
+        UpdateRgb();
 
         _tray.Icon = waiting > 0 ? _iconAttention : running > 0 ? _iconBusy : _iconIdle;
         var tooltip = waiting > 0 || running > 0
@@ -256,6 +292,29 @@ internal sealed class TrayApp : ApplicationContext
         _form.SetStatus(message);
     }
 
+    private string CurrentRgbState() =>
+        _waiting > 0 ? SignalRgbBridge.Input
+        : _running > 0 ? SignalRgbBridge.Working
+        : DateTime.Now < _doneUntil ? SignalRgbBridge.Done
+        : SignalRgbBridge.Idle;
+
+    private void UpdateRgb() => _ = _rgb.SendAsync(CurrentRgbState());
+
+    private async Task ToggleRgbAsync()
+    {
+        if (_settings.SignalRgb)
+        {
+            // Przed wyłączeniem przywracamy kolor bazowy.
+            await _rgb.SendAsync(SignalRgbBridge.Idle);
+        }
+
+        _settings.SignalRgb = !_settings.SignalRgb;
+        _settings.Save();
+        _rgb.Enabled = _settings.SignalRgb;
+        _rgbItem.Checked = _settings.SignalRgb;
+        UpdateRgb();
+    }
+
     private static bool IsAutostartEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey);
@@ -296,6 +355,10 @@ internal sealed class TrayApp : ApplicationContext
     protected override void ExitThreadCore()
     {
         _timer.Stop();
+        _doneTimer.Stop();
+        // Przy zamknięciu wentylator wraca do koloru bazowego.
+        _rgb.SendAsync(SignalRgbBridge.Idle).Wait(2500);
+        _rgb.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
         _client?.Dispose();

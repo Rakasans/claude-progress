@@ -9,6 +9,12 @@ public sealed class Settings
     public string Repo { get; set; } = "claude-progress";
     public int PollSeconds { get; set; } = 30;
 
+    /// <summary>Sterowanie wentylatorem przez efekt „Claude Status” w SignalRGB.</summary>
+    public bool SignalRgb { get; set; } = true;
+
+    /// <summary>Jak długo świeci zielony po zakończeniu zadania.</summary>
+    public int DoneGlowSeconds { get; set; } = 120;
+
     public static string Folder =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClaudeProgress");
 

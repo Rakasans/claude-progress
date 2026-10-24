@@ -25,6 +25,22 @@ Windows SmartScreen może ostrzec przy pierwszym uruchomieniu (plik nie jest pod
 
 Ustawienia (repozytorium, interwał) są w `%APPDATA%\ClaudeProgress\settings.json`.
 
+## Wentylator RGB (SignalRGB)
+
+Jeden wentylator może pokazywać stan: niebieski — praca, żółty (pulsuje) — potrzebna decyzja,
+zielony przez 2 minuty — zakończone, potem kolor bazowy jak reszta komputera.
+
+1. Skopiuj [`signalrgb/ClaudeStatus.html`](signalrgb/ClaudeStatus.html) do `Dokumenty\WhirlwindFX\Effects`
+   i uruchom ponownie SignalRGB.
+2. Włącz efekt **Claude Status**. Cały komputer dostaje kolor bazowy (domyślnie czerwony, do zmiany w ustawieniach efektu).
+3. W **Układy (Layouts)** przesuń solo wentylator (Lian Li, Channel 1) w lewy górny róg płótna,
+   a resztę urządzeń poza ten róg. W ustawieniach efektu ustaw **Podgląd → Praca**: róg robi się niebieski,
+   więc od razu widać, czy wentylator stoi w strefie. Potem wróć do **Wylaczony**.
+   Położenie i rozmiar strefy zmienisz suwakami „Strefa statusu”.
+
+Aplikacja wysyła stan na `http://localhost:16034/canvas/event` przy każdym sprawdzeniu.
+Wyłączysz to w menu ikony: **Wentylator RGB (SignalRGB)**. Bez sygnału przez 3 minuty efekt sam wraca do koloru bazowego.
+
 ## Budowanie
 
 GitHub Actions buduje `.exe` przy każdej zmianie w `src/` i publikuje wydanie.
