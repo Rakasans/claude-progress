@@ -28,18 +28,18 @@ Ustawienia (repozytorium, interwał) są w `%APPDATA%\ClaudeProgress\settings.js
 ## Wentylator RGB (SignalRGB)
 
 Jeden wentylator może pokazywać stan: niebieski — praca, żółty (pulsuje) — potrzebna decyzja,
-zielony przez 2 minuty — zakończone, potem kolor bazowy jak reszta komputera.
+zielony przez 2 minuty — zakończone, potem kolor bazowy jak reszta komputera. Działa bez SignalRGB Pro.
 
-1. Skopiuj [`signalrgb/ClaudeStatus.html`](signalrgb/ClaudeStatus.html) do `Dokumenty\WhirlwindFX\Effects`
-   i uruchom ponownie SignalRGB.
-2. Włącz efekt **Claude Status**. Cały komputer dostaje kolor bazowy (domyślnie czerwony, do zmiany w ustawieniach efektu).
-3. W **Układy (Layouts)** przesuń solo wentylator (Lian Li, Channel 1) w lewy górny róg płótna,
-   a resztę urządzeń poza ten róg. W ustawieniach efektu ustaw **Podgląd → Praca**: róg robi się niebieski,
-   więc od razu widać, czy wentylator stoi w strefie. Potem wróć do **Wylaczony**.
-   Położenie i rozmiar strefy zmienisz suwakami „Strefa statusu”.
+1. Skopiuj cztery pliki z folderu [`signalrgb`](signalrgb) (`ClaudeIdle`, `ClaudePraca`, `ClaudeDecyzja`, `ClaudeKoniec`)
+   do `Dokumenty\WhirlwindFX\Effects` i uruchom ponownie SignalRGB.
+2. Każdy efekt maluje cały komputer kolorem bazowym (domyślnie czerwony) i tylko lewy górny róg płótna
+   (strefa statusu, domyślnie 60 × 60) kolorem stanu.
+3. W **Oświetlenie → Układy** postaw solo wentylator w całości w lewym górnym rogu, a resztę urządzeń poza nim.
+   Alternatywnie dopasuj suwaki „Strefa statusu” w każdym z czterech efektów.
 
-Aplikacja wysyła stan na `http://localhost:16034/canvas/event` przy każdym sprawdzeniu.
-Wyłączysz to w menu ikony: **Wentylator RGB (SignalRGB)**. Bez sygnału przez 3 minuty efekt sam wraca do koloru bazowego.
+Aplikacja przy zmianie stanu włącza odpowiedni efekt przez
+`SignalRgbLauncher.exe --url=effect/apply/<nazwa>?-silentlaunch-`. Wyłączysz to w menu ikony:
+**Wentylator RGB (SignalRGB)**. Historia przełączeń jest w `%APPDATA%\ClaudeProgress\signalrgb.log`.
 
 ## Budowanie
 

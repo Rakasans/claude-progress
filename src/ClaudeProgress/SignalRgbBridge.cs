@@ -1,9 +1,12 @@
+using System.Diagnostics;
+
 namespace ClaudeProgress;
 
 /// <summary>
-/// Wysyła stan do efektu „Claude Status” w SignalRGB przez jego lokalne API:
-/// POST http://localhost:16034/canvas/event?sender=claudeprogress&amp;event=&lt;stan&gt;
-/// Stany: working, input, done, idle. Wynik ostatnich prób trafia do %APPDATA%\ClaudeProgress\signalrgb.log.
+/// Pokazuje stan na wentylatorze, przełączając w SignalRGB jeden z czterech efektów
+/// (Claude Idle / Praca / Decyzja / Koniec) przez SignalRgbLauncher.exe --url=effect/apply/...
+/// Działa bez SignalRGB Pro. Efekt przełączany jest tylko przy zmianie stanu.
+/// Wyniki trafiają do %APPDATA%\ClaudeProgress\signalrgb.log.
 /// </summary>
 internal sealed class SignalRgbBridge : IDisposable
 {
@@ -12,46 +15,71 @@ internal sealed class SignalRgbBridge : IDisposable
     public const string Done = "done";
     public const string Idle = "idle";
 
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(2) };
-    private readonly string _logPath = Path.Combine(Settings.Folder, "signalrgb.log");
-    private string? _lastLogged;
-
-    public bool Enabled { get; set; }
-
-    public async Task SendAsync(string state)
+    private static readonly Dictionary<string, string> EffectNames = new()
     {
-        if (!Enabled)
+        [Working] = "Claude Praca",
+        [Input] = "Claude Decyzja",
+        [Done] = "Claude Koniec",
+        [Idle] = "Claude Idle",
+    };
+
+    private readonly string _logPath = Path.Combine(Settings.Folder, "signalrgb.log");
+    private string? _lastApplied;
+    private bool _enabled;
+
+    public bool Enabled
+    {
+        get => _enabled;
+        set
         {
-            return;
+            _enabled = value;
+            // Po włączeniu wymuszamy ponowne ustawienie efektu.
+            _lastApplied = null;
+        }
+    }
+
+    public Task SendAsync(string state)
+    {
+        if (!_enabled || state == _lastApplied || !EffectNames.TryGetValue(state, out var effect))
+        {
+            return Task.CompletedTask;
         }
 
-        string result;
+        var encoded = Uri.EscapeDataString(effect);
+        var launcher = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "VortxEngine", "SignalRgbLauncher.exe");
+
         try
         {
-            var url = $"http://localhost:16034/canvas/event?sender=claudeprogress&event={state}";
-            // Pusta treść, żeby żądanie miało Content-Length: 0 (jak w PowerShellu).
-            using var content = new StringContent(string.Empty);
-            using var response = await _http.PostAsync(url, content).ConfigureAwait(false);
-            result = $"HTTP {(int)response.StatusCode}";
+            if (File.Exists(launcher))
+            {
+                // ?-silentlaunch- nie wyciąga okna SignalRGB na wierzch.
+                Process.Start(new ProcessStartInfo(launcher, $"--url=effect/apply/{encoded}?-silentlaunch-")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                })?.Dispose();
+                Log($"{state} -> {effect} (launcher)");
+            }
+            else
+            {
+                Process.Start(new ProcessStartInfo($"signalrgb://effect/apply/{encoded}") { UseShellExecute = true })?.Dispose();
+                Log($"{state} -> {effect} (signalrgb://, brak launchera w {launcher})");
+            }
+
+            _lastApplied = state;
         }
         catch (Exception ex)
         {
-            result = "błąd: " + ex.GetBaseException().Message;
+            Log($"{state} -> błąd: {ex.GetBaseException().Message}");
         }
 
-        Log(state, result);
+        return Task.CompletedTask;
     }
 
-    private void Log(string state, string result)
+    private void Log(string line)
     {
-        // Zapisujemy tylko zmiany, żeby log nie rósł co 30 sekund.
-        var line = $"{state} -> {result}";
-        if (line == _lastLogged)
-        {
-            return;
-        }
-
-        _lastLogged = line;
         try
         {
             Directory.CreateDirectory(Settings.Folder);
@@ -63,5 +91,7 @@ internal sealed class SignalRgbBridge : IDisposable
         }
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+    }
 }
