@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish single-file exe
+        run: >
+          dotnet publish src/ClaudeProgress/ClaudeProgress.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:Version=1.0.${{ github.run_number }}
+          -o publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClaudeProgress
+          path: publish/ClaudeProgress.exe
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Claude Progress 1.0.${{ github.run_number }}
+          files: publish/ClaudeProgress.exe
+          make_latest: true
+          body: |
+            Pobierz `ClaudeProgress.exe` i uruchom. Nie wymaga instalacji .NET.
